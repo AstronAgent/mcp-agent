@@ -19,141 +19,57 @@ server.tool("add", { a: z.number(), b: z.number() }, async ({ a, b }) => ({
   content: [{ type: "text", text: String(a + b) }],
 }));
 
-// Add screenshot tool
+server.tool("sub", { a: z.number(), b: z.number() }, async ({ a, b }) => ({
+  content: [{ type: "text", text: String(a - b) }],
+}));
+
+// Add polymarket tool
 server.tool(
-  "take_coinglass_screenshots",
+  "get_polymarket_events",
   {
-    outputDir: z
-      .string()
-      .optional()
-      .describe(
-        "Output directory for screenshots (default: current directory)"
-      ),
-    headless: z
-      .boolean()
-      .optional()
-      .describe("Run browser in headless mode (default: false)"),
+    limit: z.number().optional(),
+    offset: z.number().optional(),
+    order: z.string().optional(),
+    ascending: z.boolean().optional(),
+    id: z.array(z.number()).optional(),
+    slug: z.array(z.string()).optional(),
+    tag_id: z.number().optional(),
+    exclude_tag_id: z.array(z.number()).optional(),
+    related_tags: z.boolean().optional(),
+    featured: z.boolean().optional(),
+    cyom: z.boolean().optional(),
+    include_chat: z.boolean().optional(),
+    include_template: z.boolean().optional(),
+    recurrence: z.string().optional(),
+    closed: z.boolean().optional(),
+    start_date_min: z.string().optional(),
+    start_date_max: z.string().optional(),
+    end_date_min: z.string().optional(),
+    end_date_max: z.string().optional(),
   },
-  async ({ outputDir = ".", headless = false }) => {
-    const endpoints = [
-      {
-        url: "https://www.coinglass.com/pro/heatmap/market-cap",
-        folder: "marketcap",
-      },
-      {
-        url: "https://www.coinglass.com/pro/heatmap/fundingrate",
-        folder: "fundingrate",
-      },
-      { url: "https://www.coinglass.com/pro/heatmap/rsi", folder: "rsi" },
-      {
-        url: "https://www.coinglass.com/pro/heatmap/price-change",
-        folder: "price-change",
-      },
-      { url: "https://www.coinglass.com/pro/heatmap/oi", folder: "oi" },
-      {
-        url: "https://www.coinglass.com/pro/heatmap/oi-change",
-        folder: "oi-change",
-      },
-      {
-        url: "https://www.coinglass.com/pro/heatmap/oi-change-usd",
-        folder: "oi-change-usd",
-      },
-      { url: "https://www.coinglass.com/pro/heatmap/vol", folder: "vol" },
-      {
-        url: "https://www.coinglass.com/pro/heatmap/vol-change",
-        folder: "vol-change",
-      },
-      {
-        url: "https://www.coinglass.com/pro/heatmap/vol-change-usd",
-        folder: "vol-change-usd",
-      },
-    ];
-
+  async (params) => {
     try {
-      // Launch the browser and open a new blank page
-      const browser = await puppeteer.launch({
-        headless: headless, // Show the browser UI
-        slowMo: 100, // Slow down operations by 100ms
-        args: ["--start-maximized"],
-        // devtools: true, // Open DevTools automatically (optional)
-      });
-
-      const page = await browser.newPage();
-      await page.setViewport({ width: 1920, height: 1080 });
-
-      // Generate timestamp for all filenames
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-")
-        .slice(0, 19);
-      const results: string[] = [];
-
-      // Process each endpoint
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`Processing ${endpoint.folder}...`);
-
-          // Navigate to the URL
-          await page.goto(endpoint.url);
-
-          // Create directory if it doesn't exist (in outputDir)
-          const folderPath = path.join(outputDir, endpoint.folder);
-          if (!fs.existsSync(folderPath)) {
-            fs.mkdirSync(folderPath, { recursive: true });
+      const url = new URL("https://gamma-api.polymarket.com/events");
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          if (Array.isArray(value)) {
+            value.forEach((v) => url.searchParams.append(key, String(v)));
+          } else {
+            url.searchParams.append(key, String(value));
           }
-
-          // Wait for the button and click it
-          const buttonSelector =
-            "#cg-treemap > div.MuiBox-root.cg-style-1us6v5o > div.MuiStack-root.cg-style-1mzerio > button.MuiIconButton-root.MuiIconButton-variantOutlined.MuiIconButton-colorNeutral.MuiIconButton-sizeMd.cg-style-128wg0v";
-
-          await page.waitForSelector(buttonSelector, { timeout: 10000 });
-          await page.click(buttonSelector);
-          console.log(`Button clicked successfully for ${endpoint.folder}`);
-
-          // Wait for content to load
-          // await page.waitForTimeout(2000);
-
-          // Generate filename
-          const filename = path.join(
-            folderPath,
-            `${endpoint.folder}-heatmap-${timestamp}.png`
-          );
-
-          // Take a screenshot of full page
-          await page.screenshot({ path: filename, fullPage: true });
-          console.log(`Screenshot saved as ${filename}`);
-          results.push(`✓ ${endpoint.folder}: ${filename}`);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.error(`Error processing ${endpoint.folder}:`, errorMessage);
-          results.push(`✗ ${endpoint.folder}: Error - ${errorMessage}`);
         }
+      });
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
       }
-
-      await browser.close();
-      console.log("All screenshots completed!");
-
+      const data = await response.json();
       return {
-        content: [
-          {
-            type: "text",
-            text: `All screenshots completed!\n\n${results.join(
-              "\n"
-            )}\n\nTotal processed: ${endpoints.length} endpoints`,
-          },
-        ],
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
       return {
-        content: [
-          {
-            type: "text",
-            text: `Error taking screenshots: ${errorMessage}`,
-          },
-        ],
+        content: [{ type: "text", text: `Error fetching Polymarket events` }],
       };
     }
   }

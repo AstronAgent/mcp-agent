@@ -29,16 +29,20 @@ async function main() {
             arguments: { a: 5, b: 3 },
         });
         console.log("Add result:", addResult);
-        // Test the screenshot tool
-        console.log("\nTesting screenshot tool...");
-        const screenshotResult = await client.callTool({
-            name: "take_coinglass_screenshots",
-            arguments: {
-                outputDir: "./screenshots",
-                headless: false,
-            },
+        // Test the sub tool
+        console.log("\nTesting sub tool...");
+        const subResult = await client.callTool({
+            name: "sub",
+            arguments: { a: 5, b: 3 },
         });
-        console.log("Screenshot result:", screenshotResult);
+        console.log("Sub result:", subResult);
+        // Test polymarket tool
+        console.log("\nTesting polymarket tool...");
+        const polymarketResult = await client.callTool({
+            name: "get_polymarket_events",
+            arguments: { limit: 5 },
+        });
+        console.log("Polymarket result:", polymarketResult);
         // Test listing resources
         console.log("\nListing resources...");
         const resources = await client.listResources();
